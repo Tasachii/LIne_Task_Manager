@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Line Task Manager — Kanban Board and Task Assignment Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif; }
+      .mermaid { background: #fff; }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+
+    <header class="bg-gradient-to-r from-indigo-700 to-violet-700 text-white">
+      <div class="max-w-6xl mx-auto px-6 py-8">
+        <p class="text-xs uppercase tracking-widest opacity-80">Line Task Manager · Feature Flow</p>
+        <h1 class="text-3xl md:text-4xl font-bold mt-1">Kanban Board &amp; Task Assignment Flow</h1>
+        <p class="mt-2 text-indigo-100">ทีมเปิด board ดูการ์ด 4 คอลัมน์ ลากการ์ดเปลี่ยน status กดรับงาน และทุกคนเห็น update realtime ผ่าน WebSocket</p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <span class="bg-white/20 px-3 py-1 rounded-full">Board &amp; Assignment</span>
+          <span class="bg-amber-300/30 px-3 py-1 rounded-full">[MEMBER]</span>
+          <span class="bg-amber-300/30 px-3 py-1 rounded-full">[ADMIN]</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">frontend</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">backend</span>
+          <span class="bg-slate-400/20 px-3 py-1 rounded-full">● draft</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">Generated 2026-06-08</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-10 space-y-10">
+
+      <!-- 1. Actors & Surfaces -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">1. Actors &amp; Surfaces</h2>
+        <div class="grid md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-indigo-600 font-semibold">Frontend</p>
+            <h3 class="font-semibold mt-1">Kanban Board (Browser)</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li>Route: <code class="text-xs bg-slate-100 px-1 rounded">/board</code></li>
+              <li>Component: <code class="text-xs bg-slate-100 px-1 rounded">KanbanBoard</code> — 4 columns</li>
+              <li>Component: <code class="text-xs bg-slate-100 px-1 rounded">TaskCard</code> — drag &amp; drop</li>
+              <li>Component: <code class="text-xs bg-slate-100 px-1 rounded">TaskDetailModal</code></li>
+              <li>Drag library: dnd-kit (proposed)</li>
+              <li>WebSocket client — รับ realtime events</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-emerald-600 font-semibold">Backend</p>
+            <h3 class="font-semibold mt-1">REST API &amp; WebSocket Hub</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li><code class="text-xs bg-slate-100 px-1 rounded">GET /tasks</code> — โหลดการ์ดทั้งหมด</li>
+              <li><code class="text-xs bg-slate-100 px-1 rounded">PATCH /tasks/:id/status</code> — เปลี่ยน status</li>
+              <li><code class="text-xs bg-slate-100 px-1 rounded">POST /tasks/:id/assign</code> — รับงาน</li>
+              <li><code class="text-xs bg-slate-100 px-1 rounded">GET /tasks/:id</code> — detail + LINE source</li>
+              <li>WebSocket Hub — broadcast ให้ทุก client</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-amber-600 font-semibold">Database</p>
+            <h3 class="font-semibold mt-1">Database</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">tasks</code> — UPDATE status, assignee_id</li>
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">users</code> — SELECT member info</li>
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">line_messages</code> — JOIN สำหรับ detail view (FR-3.5)</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Sequence Diagram -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">2. Sequence Diagram — Happy Path</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+sequenceDiagram
+    actor M as Member
+    participant F as Frontend
+    participant W as Backend
+    participant D as Database
+    participant WS as WebSocket Hub
+
+    M->>F: เปิด Kanban Board
+    F->>W: GET /tasks
+    W->>D: SELECT tasks
+    D-->>W: task records
+    W-->>F: tasks[]
+    F-->>M: แสดง 4 คอลัมน์
+
+    Note over M,WS: ลากการ์ดเปลี่ยน status
+    M->>F: ลากการ์ดไปคอลัมน์ใหม่
+    F->>W: PATCH /tasks/:id/status
+    W->>D: UPDATE tasks SET status
+    D-->>W: updated task
+    W->>WS: broadcast task_updated
+    WS->>F: task_updated event (all clients)
+    F-->>M: การ์ดย้ายคอลัมน์ realtime
+
+    Note over M,WS: รับงาน (assign)
+    M->>F: กดรับงาน
+    F->>W: POST /tasks/:id/assign
+    W->>D: UPDATE tasks SET assignee_id
+    D-->>W: updated task
+    W->>WS: broadcast task_assigned
+    WS->>F: task_assigned event
+    F-->>M: ชื่อ Member ปรากฏบนการ์ด
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. State Machine -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">3. State Machine — Task Status Transitions</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+stateDiagram-v2
+    state "In Process" as InProcess
+    [*] --> Todo : Bot สร้าง Task
+    Todo --> InProcess : Member รับงาน ลากการ์ด
+    InProcess --> Test : ทำเสร็จ ลากการ์ด
+    Test --> Done : ผ่านเทส ลากการ์ด
+    Test --> InProcess : ทดสอบไม่ผ่าน ลากกลับ
+    Done --> [*]
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">หมายเหตุ: ยังไม่กำหนดว่า backend จะ enforce valid transitions เท่านั้น หรือ allow any transition — ดู Open Questions ข้อ 3</p>
+      </section>
+
+      <!-- 4. ER Diagram -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">4. ER Diagram — Tables Touched</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+erDiagram
+    TASKS {
+        string id PK
+        string title
+        text description
+        string status
+        string source_message_id FK
+        string assignee_id FK
+        datetime created_at
+        datetime updated_at
+    }
+    USERS {
+        string id PK
+        string line_user_id
+        string display_name
+        string role
+    }
+    LINE_MESSAGES {
+        string message_id PK
+        text content
+        datetime timestamp
+    }
+    TASKS }o--o| USERS : "assigned to"
+    TASKS ||--|| LINE_MESSAGES : "from message"
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Endpoint Catalog -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">5. Endpoint Catalog</h2>
+        <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-4 py-2 text-left">Method</th>
+                <th class="px-4 py-2 text-left">Path</th>
+                <th class="px-4 py-2 text-left">Role</th>
+                <th class="px-4 py-2 text-left">Request</th>
+                <th class="px-4 py-2 text-left">Response</th>
+                <th class="px-4 py-2 text-left">Notes</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr>
+                <td class="px-4 py-2 font-mono text-xs">GET</td>
+                <td class="px-4 py-2 font-mono text-xs">/tasks</td>
+                <td class="px-4 py-2 text-xs">MEMBER, ADMIN</td>
+                <td class="px-4 py-2 text-xs">—</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">tasks[]</code> grouped by status</td>
+                <td class="px-4 py-2 text-xs">โหลด board ครั้งแรก และ re-fetch หลัง WS reconnect</td>
+              </tr>
+              <tr class="bg-slate-50">
+                <td class="px-4 py-2 font-mono text-xs">PATCH</td>
+                <td class="px-4 py-2 font-mono text-xs">/tasks/:id/status</td>
+                <td class="px-4 py-2 text-xs">MEMBER, ADMIN</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">{ status: string }</code></td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">updated task</code></td>
+                <td class="px-4 py-2 text-xs">broadcast task_updated ผ่าน WS ให้ทุก client (FR-3.4)</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2 font-mono text-xs">POST</td>
+                <td class="px-4 py-2 font-mono text-xs">/tasks/:id/assign</td>
+                <td class="px-4 py-2 text-xs">MEMBER, ADMIN</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">{ assignee_id: string }</code></td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">updated task</code></td>
+                <td class="px-4 py-2 text-xs">broadcast task_assigned — FR-4.2 multi-assignee ยังไม่กำหนด</td>
+              </tr>
+              <tr class="bg-slate-50">
+                <td class="px-4 py-2 font-mono text-xs">GET</td>
+                <td class="px-4 py-2 font-mono text-xs">/tasks/:id</td>
+                <td class="px-4 py-2 text-xs">MEMBER, ADMIN</td>
+                <td class="px-4 py-2 text-xs">—</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">task + source LINE message</code></td>
+                <td class="px-4 py-2 text-xs">คลิกการ์ดดู detail + ข้อความต้นฉบับจาก LINE (FR-3.5)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 6. Key Files -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">6. Key Files <span class="text-sm font-normal text-amber-600">(planned — ยังไม่มีโค้ด)</span></h2>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <h3 class="font-semibold text-indigo-700 text-sm mb-2">Frontend</h3>
+            <ul class="text-xs text-slate-700 space-y-1 font-mono">
+              <li>src/pages/BoardPage.tsx</li>
+              <li>src/components/KanbanBoard.tsx</li>
+              <li>src/components/TaskCard.tsx</li>
+              <li>src/components/TaskDetailModal.tsx</li>
+              <li>src/hooks/useWebSocket.ts</li>
+              <li>src/api/tasks.ts</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <h3 class="font-semibold text-emerald-700 text-sm mb-2">Backend</h3>
+            <ul class="text-xs text-slate-700 space-y-1 font-mono">
+              <li>src/tasks/tasks.controller.ts</li>
+              <li>src/tasks/tasks.service.ts</li>
+              <li>src/tasks/tasks.repository.ts</li>
+              <li>src/websocket/websocket.gateway.ts</li>
+              <li>src/auth/auth.middleware.ts</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. Edge Cases -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">7. Edge Cases &amp; Error Paths</h2>
+        <ul class="list-disc pl-6 text-sm text-slate-700 space-y-2">
+          <li><strong>Concurrent drag โดย 2 Member:</strong> ทั้งคู่ลากการ์ดใบเดียวกันพร้อมกัน — last-write-wins หรือ optimistic lock? (ดู Open Questions ข้อ 4)</li>
+          <li><strong>Task ถูก assign แล้ว:</strong> Member อื่นกด assign ซ้อน — override หรือ reject? (FR-4.2 ยังไม่กำหนด)</li>
+          <li><strong>WebSocket disconnect ระหว่าง drag:</strong> board state stale — client ควร reconnect และ re-fetch GET /tasks ทั้งหมด</li>
+          <li><strong>Unauthorized transition:</strong> MEMBER ลากจาก Todo ไป Done โดยตรง — backend enforce state machine หรือ allow any transition?</li>
+          <li><strong>Board มีการ์ด 200+ ใบ:</strong> ต้อง render ลื่น (NFR Performance) — ต้องทดสอบ virtualization หรือ pagination</li>
+          <li><strong>Admin ลบ Task ที่มี assignee:</strong> MVP Task หายจาก board — Phase 3 จะส่ง LINE notification แจ้ง assignee</li>
+        </ul>
+      </section>
+
+      <!-- 8. Open Questions -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">8. Open Questions / Gaps</h2>
+        <ul class="list-disc pl-6 text-sm text-slate-700 space-y-2">
+          <li><strong>Multi-assignee (OQ-2):</strong> 1 Task assign ได้กี่คน — 1 คนหรือหลายคนพร้อมกัน? ส่งผลต่อ data model (assignee_id vs assignees[]) และ UI การ์ด (REQUIREMENTS.md §12 Q2, FR-4.2)</li>
+          <li><strong>Who tests (OQ-3):</strong> คอลัมน์ Test ใครเป็น tester? คนทำสามารถเทสงานตัวเองได้ไหม? ส่งผลต่อ permission ของ PATCH /tasks/:id/status ในคอลัมน์ Test (REQUIREMENTS.md §12 Q3)</li>
+          <li><strong>State machine enforcement:</strong> Backend enforce valid transitions (เช่น Todo ไป Done ตรงไม่ได้) หรือ allow any-to-any transition ให้ UI จัดการเอง?</li>
+          <li><strong>Concurrent edit resolution:</strong> optimistic lock ด้วย version field หรือ last-write-wins? — ส่งผลต่อ WS event payload design</li>
+          <li><strong>Member permissions:</strong> MEMBER เปลี่ยน status การ์ดของคนอื่นได้ไหม หรือได้เฉพาะการ์ดที่ assign ตัวเอง?</li>
+          <li><strong>Backend language (OQ-4):</strong> Node.js หรือ Python? — ส่งผลต่อ LINE SDK และ WebSocket library ที่ใช้ (REQUIREMENTS.md §12 Q4)</li>
+        </ul>
+      </section>
+
+      <!-- Standard footer -->
+      <footer class="text-xs text-slate-500 pt-6 border-t border-slate-200 space-y-1">
+        <p>
+          <strong>Plan:</strong> — (pre-plan-convention, ยังไม่มีไฟล์ plan)
+          ·
+          <strong>Context:</strong>
+          <a href="../01-architecture/00-system-design.md" class="text-indigo-600 underline">§3 Board &amp; Assignment</a>
+          ·
+          <strong>ADRs:</strong> — (ยังไม่มี ADR)
+          ·
+          <a href="./index.html" class="text-indigo-600 underline">← back to hub</a>
+        </p>
+        <p>Sources: <code>REQUIREMENTS.md §§3, 4, 5.3, 5.4, 6, 12</code></p>
+      </footer>
+
+    </main>
+  </body>
+</html>

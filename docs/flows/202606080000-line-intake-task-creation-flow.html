@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Line Task Manager — LINE Intake to Task Creation Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif; }
+      .mermaid { background: #fff; }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+
+    <header class="bg-gradient-to-r from-indigo-700 to-violet-700 text-white">
+      <div class="max-w-6xl mx-auto px-6 py-8">
+        <p class="text-xs uppercase tracking-widest opacity-80">Line Task Manager · Feature Flow</p>
+        <h1 class="text-3xl md:text-4xl font-bold mt-1">LINE Intake → Task Creation Flow</h1>
+        <p class="mt-2 text-indigo-100">Bot รับ Webhook จาก LINE Group ตรวจ signature วิเคราะห์ข้อความ และสร้าง Task ลงคอลัมน์ Todo อัตโนมัติ</p>
+        <div class="mt-4 flex flex-wrap gap-2 text-xs">
+          <span class="bg-white/20 px-3 py-1 rounded-full">LINE Integration · Task Extraction</span>
+          <span class="bg-amber-300/30 px-3 py-1 rounded-full">[CUSTOMER]</span>
+          <span class="bg-amber-300/30 px-3 py-1 rounded-full">[MEMBER]</span>
+          <span class="bg-amber-300/30 px-3 py-1 rounded-full">[ADMIN]</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">line-bot</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">backend</span>
+          <span class="bg-slate-400/20 px-3 py-1 rounded-full">● draft</span>
+          <span class="bg-white/20 px-3 py-1 rounded-full">Generated 2026-06-08</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-10 space-y-10">
+
+      <!-- 1. Actors & Surfaces -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">1. Actors &amp; Surfaces</h2>
+        <div class="grid md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-violet-600 font-semibold">LINE Side</p>
+            <h3 class="font-semibold mt-1">Customer &amp; LINE Platform</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li><strong>Customer</strong> — พิมพ์ข้อความในกลุ่ม LINE (ไม่ต้องเข้าระบบ)</li>
+              <li><strong>LINE Platform</strong> — รับข้อความแล้วส่ง Webhook event ไปยัง Backend</li>
+              <li>Event type: <code class="text-xs bg-slate-100 px-1 rounded">message</code></li>
+              <li>Header: <code class="text-xs bg-slate-100 px-1 rounded">X-Line-Signature</code></li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-emerald-600 font-semibold">Backend</p>
+            <h3 class="font-semibold mt-1">Webhook Server &amp; Task Extractor</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li><code class="text-xs bg-slate-100 px-1 rounded">POST /webhook</code> — entry point</li>
+              <li>Verify HMAC-SHA256 signature ก่อนทุก request</li>
+              <li>Task Extractor — keyword <code class="text-xs bg-slate-100 px-1 rounded">/task</code> (MVP) หรือ LLM (Phase 2)</li>
+              <li>LINE Get Profile API — ดึง display name</li>
+              <li>LINE Reply API — ยืนยัน (FR-1.5, optional)</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-amber-600 font-semibold">Database &amp; Realtime</p>
+            <h3 class="font-semibold mt-1">Database &amp; WebSocket</h3>
+            <ul class="text-sm text-slate-600 mt-2 space-y-1">
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">tasks</code> — INSERT สถานะ todo</li>
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">users</code> — upsert profile</li>
+              <li>Table <code class="text-xs bg-slate-100 px-1 rounded">line_messages</code> — บันทึก source</li>
+              <li>WebSocket Hub — broadcast task ใหม่ให้ Frontend</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Sequence Diagram -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">2. Sequence Diagram — Happy Path</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+sequenceDiagram
+    actor C as Customer
+    participant L as LINE Platform
+    participant W as Backend
+    participant E as Task Extractor
+    participant D as Database
+    participant F as Frontend
+
+    C->>L: พิมพ์ข้อความในกลุ่ม LINE
+    L->>W: POST /webhook
+    W->>W: verify X-Line-Signature
+    Note over W: signature ผิด = 400 ทันที
+    W->>E: ส่งข้อความวิเคราะห์
+    alt มีงาน
+        E-->>W: tasks[]
+        W->>D: INSERT tasks status=todo
+        D-->>W: saved tasks
+        W->>F: WebSocket - new tasks
+        W->>L: reply ยืนยัน (optional)
+    else ไม่ใช่งาน
+        E-->>W: empty
+    end
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. State Machine -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">3. State Machine — Task Lifecycle</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+stateDiagram-v2
+    state "In Process" as InProcess
+    [*] --> Todo : Bot สร้าง Task
+    Todo --> InProcess : Member รับงาน
+    InProcess --> Test : ทำเสร็จ
+    Test --> Done : ผ่านเทส
+    Test --> InProcess : ทดสอบไม่ผ่าน
+    Done --> [*]
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. ER Diagram -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">4. ER Diagram — Tables Touched</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-4 overflow-x-auto">
+          <div class="mermaid">
+erDiagram
+    TASKS {
+        string id PK
+        string title
+        text description
+        string status
+        string source_message_id FK
+        string group_id
+        string created_by FK
+        string assignee_id FK
+        string priority
+        datetime created_at
+        datetime updated_at
+    }
+    USERS {
+        string id PK
+        string line_user_id
+        string display_name
+        string role
+    }
+    LINE_MESSAGES {
+        string message_id PK
+        string group_id
+        string user_id
+        text content
+        datetime timestamp
+    }
+    TASKS }o--|| USERS : "created by"
+    TASKS }o--o| USERS : "assigned to"
+    LINE_MESSAGES ||--o{ TASKS : "spawns"
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Endpoint Catalog -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">5. Endpoint Catalog</h2>
+        <div class="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-4 py-2 text-left">Method</th>
+                <th class="px-4 py-2 text-left">Path</th>
+                <th class="px-4 py-2 text-left">Role</th>
+                <th class="px-4 py-2 text-left">Request</th>
+                <th class="px-4 py-2 text-left">Response</th>
+                <th class="px-4 py-2 text-left">Notes</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr>
+                <td class="px-4 py-2 font-mono text-xs">POST</td>
+                <td class="px-4 py-2 font-mono text-xs">/webhook</td>
+                <td class="px-4 py-2 text-xs">LINE Platform (system)</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">LINE Event Object</code></td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">200 OK</code></td>
+                <td class="px-4 py-2 text-xs">Verify X-Line-Signature ก่อนเสมอ — ถ้าผิด return 400; LINE retry ถ้าไม่ได้รับ 2xx</td>
+              </tr>
+              <tr class="bg-slate-50">
+                <td class="px-4 py-2 font-mono text-xs">GET</td>
+                <td class="px-4 py-2 font-mono text-xs">/line/profile/:userId</td>
+                <td class="px-4 py-2 text-xs">Internal (Backend → LINE API)</td>
+                <td class="px-4 py-2 text-xs">—</td>
+                <td class="px-4 py-2 text-xs"><code class="bg-slate-100 px-1 rounded">{ displayName, pictureUrl }</code></td>
+                <td class="px-4 py-2 text-xs">ดึง display name สำหรับ created_by — มี quota ต่อเดือน (NFR)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 6. Key Files -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">6. Key Files <span class="text-sm font-normal text-amber-600">(planned — ยังไม่มีโค้ด)</span></h2>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <h3 class="font-semibold text-emerald-700 text-sm mb-2">Backend</h3>
+            <ul class="text-xs text-slate-700 space-y-1 font-mono">
+              <li>src/webhook/webhook.controller.ts</li>
+              <li>src/webhook/webhook.service.ts</li>
+              <li>src/tasks/task-extraction.service.ts</li>
+              <li>src/tasks/tasks.service.ts</li>
+              <li>src/tasks/tasks.repository.ts</li>
+              <li>src/line/line-client.service.ts</li>
+            </ul>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-4">
+            <h3 class="font-semibold text-amber-700 text-sm mb-2">Database Migrations</h3>
+            <ul class="text-xs text-slate-700 space-y-1 font-mono">
+              <li>migrations/001_create_line_messages.sql</li>
+              <li>migrations/002_create_users.sql</li>
+              <li>migrations/003_create_tasks.sql</li>
+            </ul>
+            <h3 class="font-semibold text-violet-700 text-sm mb-2 mt-4">Config / Env</h3>
+            <ul class="text-xs text-slate-700 space-y-1 font-mono">
+              <li>.env — LINE_CHANNEL_SECRET</li>
+              <li>.env — LINE_CHANNEL_ACCESS_TOKEN</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. Edge Cases -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">7. Edge Cases &amp; Error Paths</h2>
+        <ul class="list-disc pl-6 text-sm text-slate-700 space-y-2">
+          <li><strong>Invalid X-Line-Signature:</strong> return 400 ทันที ไม่ประมวลผล — ป้องกัน request ปลอม (NFR Security)</li>
+          <li><strong>ข้อความไม่ใช่งาน:</strong> Task Extractor return empty list → ข้ามโดยไม่มี side effect</li>
+          <li><strong>1 ข้อความมีหลายงาน:</strong> แตกเป็นหลาย Task records ทุกอันผูก source_message_id เดียวกัน (FR-2.2)</li>
+          <li><strong>LINE Get Profile API error:</strong> Task ถูกสร้างด้วย line_user_id แต่ display_name ว่าง — behavior retry ยังไม่กำหนด</li>
+          <li><strong>LINE Push message quota หมด:</strong> reply confirm ล้มเหลว — Task ยังถูกสร้างปกติ แต่ Customer ไม่ได้รับยืนยัน (FR-1.5 optional)</li>
+          <li><strong>Database INSERT ล้มเหลว:</strong> Task หาย — ยังไม่มี retry queue ใน MVP</li>
+          <li><strong>LINE Webhook retry:</strong> LINE จะ retry ถ้า server ไม่ได้รับ 2xx — อาจทำให้สร้าง Task ซ้ำ ถ้าไม่มี idempotency key</li>
+          <li><strong>LLM API unavailable (Phase 2):</strong> fallback ไป keyword mode หรือ queue ไว้ process ทีหลัง — ยังไม่ตัดสินใจ</li>
+        </ul>
+      </section>
+
+      <!-- 8. Open Questions -->
+      <section>
+        <h2 class="text-xl font-semibold mb-4">8. Open Questions / Gaps</h2>
+        <ul class="list-disc pl-6 text-sm text-slate-700 space-y-2">
+          <li><strong>Task detection approach (OQ-1):</strong> เริ่มด้วย keyword <code class="bg-slate-100 px-1 rounded">/task</code> (MVP) หรือ AI auto-detect เลย? — ส่งผลต่อ UX ลูกค้า และ complexity ของ Task Extractor (REQUIREMENTS.md §12 Q1)</li>
+          <li><strong>AI provider (Phase 2):</strong> Claude API หรือ OpenAI? — ขึ้นอยู่กับ cost และคุณภาพภาษาไทย</li>
+          <li><strong>Idempotency:</strong> ถ้า LINE retry Webhook — backend ควรตรวจ messageId ก่อน INSERT เพื่อกัน Task ซ้ำไหม?</li>
+          <li><strong>Multi-task reply:</strong> ถ้า 1 ข้อความสร้าง 5 Task — reply confirm รวมเป็น 1 ข้อความหรือแยก?</li>
+          <li><strong>Unknown sender:</strong> ถ้า LINE profile API error — แสดง Task ด้วย userId ดิบหรือ "Unknown"?</li>
+          <li><strong>Group scope:</strong> ระบบรองรับหลาย LINE Group พร้อมกัน หรือ 1 group ต่อ 1 deployment?</li>
+        </ul>
+      </section>
+
+      <!-- Standard footer -->
+      <footer class="text-xs text-slate-500 pt-6 border-t border-slate-200 space-y-1">
+        <p>
+          <strong>Plan:</strong> — (pre-plan-convention, ยังไม่มีไฟล์ plan)
+          ·
+          <strong>Context:</strong>
+          <a href="../01-architecture/00-system-design.md" class="text-indigo-600 underline">§3 LINE Integration · Task Extraction</a>
+          ·
+          <strong>ADRs:</strong> — (ยังไม่มี ADR)
+          ·
+          <a href="./index.html" class="text-indigo-600 underline">← back to hub</a>
+        </p>
+        <p>Sources: <code>REQUIREMENTS.md §§4, 5.1, 5.2, 10</code></p>
+      </footer>
+
+    </main>
+  </body>
+</html>
