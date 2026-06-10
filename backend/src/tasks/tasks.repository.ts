@@ -39,10 +39,21 @@ export class TasksRepository {
 
   async createTask(input: NewTaskInput): Promise<Task> {
     const id = uuid();
+    // การ์ดใหม่ต่อท้ายคอลัมน์ todo เสมอ (position = max+1)
     await this.db.query(
-      `INSERT INTO tasks (id, title, description, status, source_message_id, group_id, created_by)
-       VALUES ($1, $2, $3, 'todo', $4, $5, $6)`,
-      [id, input.title, input.description, input.sourceMessageId, input.groupId, input.createdBy],
+      `INSERT INTO tasks (id, title, description, status, source_message_id, group_id, created_by, priority, due_date, position)
+       VALUES ($1, $2, $3, 'todo', $4, $5, $6, $7, $8,
+               (SELECT COALESCE(MAX(position) + 1, 0) FROM tasks WHERE status = 'todo'))`,
+      [
+        id,
+        input.title,
+        input.description,
+        input.sourceMessageId,
+        input.groupId,
+        input.createdBy,
+        input.priority ?? null,
+        input.dueDate ?? null,
+      ],
     );
     return (await this.findById(id))!;
   }
@@ -63,10 +74,40 @@ export class TasksRepository {
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task | null> {
+    // เปลี่ยนคอลัมน์ = ไปต่อท้ายคอลัมน์ใหม่
     await this.db.query(
-      `UPDATE tasks SET status = $2, updated_at = now() WHERE id = $1`,
+      `UPDATE tasks
+       SET status = $2,
+           position = (SELECT COALESCE(MAX(position) + 1, 0) FROM tasks WHERE status = $2 AND id <> $1),
+           updated_at = now()
+       WHERE id = $1`,
       [id, status],
     );
+    return this.findById(id);
+  }
+
+  // ย้ายการ์ดไปคอลัมน์ + ตำแหน่งที่ระบุ แล้วไล่เขียน position ของทั้งคอลัมน์ใหม่ให้ชิด 0..n
+  async move(id: string, status: TaskStatus, index: number): Promise<Task | null> {
+    const exists = await this.findById(id);
+    if (!exists) return null;
+
+    const rows = await this.db.query<{ id: string }>(
+      `SELECT id FROM tasks WHERE status = $1 AND id <> $2 ORDER BY position, created_at`,
+      [status, id],
+    );
+    const ordered = rows.map((r) => r.id);
+    ordered.splice(Math.min(index, ordered.length), 0, id);
+
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i] === id) {
+        await this.db.query(
+          `UPDATE tasks SET status = $2, position = $3, updated_at = now() WHERE id = $1`,
+          [id, status, i],
+        );
+      } else {
+        await this.db.query(`UPDATE tasks SET position = $2 WHERE id = $1`, [ordered[i], i]);
+      }
+    }
     return this.findById(id);
   }
 

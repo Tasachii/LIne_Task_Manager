@@ -130,3 +130,37 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* --- production additions: badges, offline banner, login --- */
+.card__badges {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 2px;
+  flex-wrap: wrap;
+}
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eee;
+  color: #444;
+}
+.badge--high { background: #fde8e8; color: #c0392b; font-weight: 600; }
+.badge--low { background: #f0f0f0; color: #888; }
+.badge--due { background: #eef3fb; color: #34557f; }
+.badge--overdue { background: #c0392b; color: #fff; font-weight: 600; }
+.board__offline {
+  background: #fff3cd;
+  color: #7a5d00;
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+.app__login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin: 60px auto;
+  text-align: center;
+}

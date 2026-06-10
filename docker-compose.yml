@@ -15,9 +15,9 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
-  # backend จะรัน migration เองตอน start — ใช้ profile "full" จะได้ไม่บังคับ build ตอน dev ที่รันแค่ db
-  # เปิดทั้งชุด: docker compose --profile full up -d --build
+  # เปิดทั้งชุด (db + backend + frontend): docker compose --profile full up -d --build
   backend:
     profiles: ["full"]
     build:
@@ -25,7 +25,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ltm_backend
     env_file:
-      - backend/.env # ใส่ LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN ที่นี่
+      - backend/.env # ใส่ LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN / BOARD_PASSWORD ที่นี่
     environment:
       # override ให้ชี้ไป db ใน network ของ compose (ทับค่าใน .env ที่ชี้ localhost)
       DATABASE_URL: postgres://line:line@db:5432/line_task_manager
@@ -35,6 +35,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # บอร์ด + reverse proxy — public URL ชี้มาที่ :8080 ที่เดียว (รวม /webhook ของ LINE)
+  frontend:
+    profiles: ["full"]
+    build:
+      context: frontend
+    container_name: ltm_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   ltm_pgdata:

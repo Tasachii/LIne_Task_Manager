@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Board } from './components/Board';
+import { AuthError, fetchTasks, setBoardKey } from './api';
+import { resetSocket } from './socket';
 
 interface Member {
   id: string;
@@ -8,7 +10,7 @@ interface Member {
 
 const STORAGE_KEY = 'ltm_member';
 
-// อ่าน/สร้างตัวตนของสมาชิกบนบอร์ด (MVP ยังไม่มี auth)
+// อ่าน/สร้างตัวตนของสมาชิกบนบอร์ด
 function loadMember(): Member {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) return JSON.parse(raw);
@@ -17,12 +19,64 @@ function loadMember(): Member {
   return fresh;
 }
 
+type AuthState = 'checking' | 'need_key' | 'ok';
+
 export default function App() {
   const [member, setMember] = useState<Member>(loadMember);
+  const [auth, setAuth] = useState<AuthState>('checking');
+  const [keyInput, setKeyInput] = useState('');
+  const [keyError, setKeyError] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(member));
   }, [member]);
+
+  // เช็คว่าบอร์ดต้องใช้รหัสไหม / รหัสเดิมใน localStorage ยังใช้ได้ไหม
+  useEffect(() => {
+    fetchTasks()
+      .then(() => setAuth('ok'))
+      .catch((e) => setAuth(e instanceof AuthError ? 'need_key' : 'ok'));
+  }, []);
+
+  async function submitKey(e: React.FormEvent) {
+    e.preventDefault();
+    setBoardKey(keyInput.trim());
+    try {
+      await fetchTasks();
+      resetSocket(); // reconnect WebSocket ด้วย key ใหม่
+      setKeyError(false);
+      setAuth('ok');
+    } catch {
+      setKeyError(true);
+    }
+  }
+
+  if (auth === 'checking') {
+    return <p className="app__hint">กำลังเชื่อมต่อ…</p>;
+  }
+
+  if (auth === 'need_key') {
+    return (
+      <div className="app">
+        <header className="app__head">
+          <h1 className="app__title">Line Task Manager</h1>
+        </header>
+        <form className="app__login" onSubmit={submitKey}>
+          <p>บอร์ดนี้ถูกล็อก ใส่รหัสผ่านเพื่อเข้าใช้งาน</p>
+          <input
+            className="app__me-input"
+            type="password"
+            value={keyInput}
+            placeholder="รหัสผ่านบอร์ด"
+            onChange={(e) => setKeyInput(e.target.value)}
+            autoFocus
+          />
+          <button className="card__take" type="submit">เข้าบอร์ด</button>
+          {keyError && <p className="board__error">รหัสไม่ถูกต้อง</p>}
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="app">

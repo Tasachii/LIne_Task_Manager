@@ -59,7 +59,7 @@ export class WebhookService {
     }
     await this.repo.saveMessage(messageId, groupId, userId, text);
 
-    const extracted = this.extractor.extract(text);
+    const extracted = await this.extractor.extract(text);
     if (extracted.length === 0) return; // ไม่ใช่งาน ข้าม
 
     // ดึงชื่อคนสั่งงาน แล้ว upsert
@@ -72,6 +72,8 @@ export class WebhookService {
       groupId,
       sourceMessageId: messageId,
       createdBy: userId,
+      priority: t.priority,
+      dueDate: t.dueDate,
     }));
     const created = await this.tasks.createMany(inputs);
 

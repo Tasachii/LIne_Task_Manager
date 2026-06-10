@@ -1,22 +1,76 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import Anthropic from '@anthropic-ai/sdk';
+import { TaskPriority } from './dto/task.types';
 
 export interface ExtractedTask {
   title: string;
   description: string;
+  priority?: TaskPriority;
+  dueDate?: string; // YYYY-MM-DD
 }
+
+// JSON schema สำหรับ structured output ของ Claude — บังคับให้ตอบเป็นรูปนี้เสมอ
+const EXTRACT_SCHEMA = {
+  type: 'object',
+  properties: {
+    tasks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'หัวข้องานสั้นๆ ไม่เกิน 60 ตัวอักษร' },
+          description: { type: 'string', description: 'รายละเอียดงานเต็มๆ' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+          due_date: {
+            type: ['string', 'null'],
+            description: 'กำหนดส่งรูปแบบ YYYY-MM-DD ถ้าระบุในข้อความ ไม่มีให้เป็น null',
+          },
+        },
+        required: ['title', 'description'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['tasks'],
+  additionalProperties: false,
+} as const;
+
+const AI_SYSTEM_PROMPT = `คุณคือตัวคัดกรองข้อความจากกลุ่ม LINE ของทีมพัฒนาซอฟต์แวร์กับลูกค้า
+หน้าที่: ตัดสินว่าข้อความเป็น "งาน" หรือไม่ (requirement, ขอแก้บั๊ก, ขอฟีเจอร์, สั่งงาน)
+- ถ้าเป็นแค่บทสนทนาทั่วไป ทักทาย ถามไถ่ ขอบคุณ → ตอบ tasks เป็น array ว่าง
+- ถ้าเป็นงาน → แตกเป็นรายการงาน (1 ข้อความอาจมีหลายงาน) หัวข้อกระชับ รายละเอียดครบ
+- ระบุ priority เมื่อข้อความสื่อความเร่งด่วน (ด่วน/ASAP → high)
+- ระบุ due_date (YYYY-MM-DD) เฉพาะเมื่อข้อความระบุวันชัดเจน
+อย่าเดางานจากข้อความที่กำกวม — สงสัยให้ตอบ array ว่าง`;
 
 @Injectable()
 export class TaskExtractionService {
+  private readonly logger = new Logger(TaskExtractionService.name);
   private keyword = process.env.TASK_KEYWORD ?? '/task';
 
-  // MVP: ข้อความต้องขึ้นต้นด้วย keyword ถึงจะถือเป็นงาน
-  // หลายบรรทัด = หลาย task (FR-2.2)
-  extract(message: string): ExtractedTask[] {
+  // AI extraction เป็น optional — เปิดเมื่อมี ANTHROPIC_API_KEY เท่านั้น
+  private anthropic = process.env.ANTHROPIC_API_KEY
+    ? new Anthropic({ timeout: 15_000, maxRetries: 1 })
+    : null;
+  private aiModel = process.env.AI_EXTRACT_MODEL ?? 'claude-opus-4-8';
+
+  async extract(message: string): Promise<ExtractedTask[]> {
     const trimmed = message.trim();
-    if (!trimmed.toLowerCase().startsWith(this.keyword.toLowerCase())) {
-      return [];
+
+    // 1) ขึ้นต้นด้วย keyword → parse ตรงๆ เสมอ (ไม่เรียก AI)
+    if (trimmed.toLowerCase().startsWith(this.keyword.toLowerCase())) {
+      return this.extractByKeyword(trimmed);
     }
 
+    // 2) ไม่มี keyword → ให้ AI ช่วยคัด (ถ้าเปิดใช้) ไม่งั้นข้าม
+    if (this.anthropic) {
+      return this.extractByAI(message);
+    }
+    return [];
+  }
+
+  // หลายบรรทัด = หลาย task (FR-2.2) + token พิเศษ: !high/!low/!ด่วน และ @YYYY-MM-DD
+  private extractByKeyword(trimmed: string): ExtractedTask[] {
     const body = trimmed.slice(this.keyword.length).trim();
     if (!body) return [];
 
@@ -24,9 +78,60 @@ export class TaskExtractionService {
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
-      .map((line) => ({
-        title: line.length > 60 ? line.slice(0, 60) + '…' : line,
-        description: line,
+      .map((line) => this.parseLine(line));
+  }
+
+  private parseLine(line: string): ExtractedTask {
+    let priority: TaskPriority | undefined;
+    let dueDate: string | undefined;
+
+    const due = line.match(/@(\d{4}-\d{2}-\d{2})/);
+    if (due) {
+      dueDate = due[1];
+      line = line.replace(due[0], '').trim();
+    }
+    if (/!(high|สูง|ด่วน)/iu.test(line)) {
+      priority = 'high';
+      line = line.replace(/!(high|สูง|ด่วน)/giu, '').trim();
+    } else if (/!(low|ต่ำ)/iu.test(line)) {
+      priority = 'low';
+      line = line.replace(/!(low|ต่ำ)/giu, '').trim();
+    }
+
+    return { title: this.truncateTitle(line), description: line, priority, dueDate };
+  }
+
+  // ตัดที่ 60 "ตัวอักษรที่ตามองเห็น" (grapheme) — สระ/วรรณยุกต์ไทยไม่โดนผ่าครึ่ง
+  private truncateTitle(text: string): string {
+    const graphemes = [...new Intl.Segmenter('th', { granularity: 'grapheme' }).segment(text)];
+    if (graphemes.length <= 60) return text;
+    return graphemes.slice(0, 60).map((g) => g.segment).join('') + '…';
+  }
+
+  // ให้ Claude คัดกรอง — พังหรือช้าเกิน timeout ให้คืน [] (fail-open ไม่บล็อก webhook)
+  private async extractByAI(message: string): Promise<ExtractedTask[]> {
+    try {
+      const res = await this.anthropic!.messages.create({
+        model: this.aiModel,
+        max_tokens: 2048,
+        system: AI_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: message }],
+        output_config: { format: { type: 'json_schema', schema: EXTRACT_SCHEMA } },
+      } as Anthropic.MessageCreateParamsNonStreaming);
+
+      const text = res.content.find((b) => b.type === 'text')?.text ?? '{"tasks":[]}';
+      const parsed = JSON.parse(text) as {
+        tasks: { title: string; description: string; priority?: TaskPriority; due_date?: string | null }[];
+      };
+      return parsed.tasks.map((t) => ({
+        title: this.truncateTitle(t.title),
+        description: t.description,
+        priority: t.priority,
+        dueDate: t.due_date ?? undefined,
       }));
+    } catch (e) {
+      this.logger.warn(`AI extract failed (fail-open, skip message): ${(e as Error).message}`);
+      return [];
+    }
   }
 }

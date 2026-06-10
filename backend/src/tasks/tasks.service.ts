@@ -14,6 +14,15 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 
 @Injectable()
 export class TasksService {
+  // เลือกได้ว่าสถานะไหนต้องแจ้งเข้ากลุ่ม (กัน spam + ประหยัด quota ของ OA)
+  private notifyStatuses = new Set(
+    (process.env.NOTIFY_STATUSES ?? 'todo,in_process,test,done')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  private notifyAssign = (process.env.NOTIFY_ASSIGN ?? 'true') !== 'false';
+
   constructor(
     private readonly repo: TasksRepository,
     private readonly events: EventsGateway,
@@ -41,13 +50,21 @@ export class TasksService {
     const task = await this.repo.updateStatus(id, status);
     if (!task) throw new NotFoundException('task not found');
     this.events.taskUpdated(task);
+    this.notifyStatusChange(task, status);
+    return task;
+  }
 
-    // แจ้งความคืบหน้ากลับเข้ากลุ่ม LINE (fire-and-forget — push พังไม่กระทบ API)
-    const who = task.assignee_name ? `\nผู้รับผิดชอบ: ${task.assignee_name}` : '';
-    void this.line.pushToGroup(
-      task.group_id,
-      `งาน: ${task.title}\nสถานะ → ${STATUS_LABELS[status]}${who}`,
-    );
+  // ลากการ์ด: เปลี่ยนทั้งคอลัมน์และลำดับ — แจ้ง LINE เฉพาะตอนข้ามคอลัมน์
+  async move(id: string, status: TaskStatus, index: number): Promise<Task> {
+    const before = await this.repo.findById(id);
+    if (!before) throw new NotFoundException('task not found');
+
+    const task = await this.repo.move(id, status, index);
+    if (!task) throw new NotFoundException('task not found');
+
+    // position ของการ์ดอื่นในคอลัมน์เปลี่ยนด้วย → ให้ทุก client ดึงลำดับใหม่
+    this.events.tasksReordered();
+    if (before.status !== status) this.notifyStatusChange(task, status);
     return task;
   }
 
@@ -62,10 +79,22 @@ export class TasksService {
     if (!task) throw new NotFoundException('task not found');
     this.events.taskUpdated(task);
 
+    if (this.notifyAssign) {
+      void this.line.pushToGroup(
+        task.group_id,
+        `🙋 ${task.assignee_name ?? displayName ?? 'มีคน'} รับงาน "${task.title}" แล้ว`,
+      );
+    }
+    return task;
+  }
+
+  // แจ้งความคืบหน้ากลับเข้ากลุ่ม LINE (fire-and-forget — push พังไม่กระทบ API)
+  private notifyStatusChange(task: Task, status: TaskStatus) {
+    if (!this.notifyStatuses.has(status)) return;
+    const who = task.assignee_name ? `\nผู้รับผิดชอบ: ${task.assignee_name}` : '';
     void this.line.pushToGroup(
       task.group_id,
-      `🙋 ${task.assignee_name ?? displayName ?? 'มีคน'} รับงาน "${task.title}" แล้ว`,
+      `งาน: ${task.title}\nสถานะ → ${STATUS_LABELS[status]}${who}`,
     );
-    return task;
   }
 }
