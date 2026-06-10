@@ -29,6 +29,19 @@ export class WebhookService {
   }
 
   private async handleOne(event: webhook.Event): Promise<void> {
+    // บอตเพิ่งถูกเชิญเข้ากลุ่ม → ทักทาย + สอนวิธีใช้
+    if (event.type === 'join' && event.replyToken) {
+      const keyword = process.env.TASK_KEYWORD ?? '/task';
+      await this.line.replyText(
+        event.replyToken,
+        `สวัสดีครับ ผมคือ Task Manager Bot 🤖\n` +
+          `พิมพ์ข้อความขึ้นต้นด้วย "${keyword}" เพื่อสร้างงานเข้าบอร์ด เช่น\n\n` +
+          `${keyword} แก้ปุ่ม login หน้าแรก\nเปลี่ยนสีปุ่มเป็นสีเขียว\n\n` +
+          `(1 บรรทัด = 1 งาน) แล้วผมจะแจ้งความคืบหน้าในกลุ่มนี้เมื่อสถานะงานเปลี่ยนครับ`,
+      );
+      return;
+    }
+
     // สนใจเฉพาะข้อความ text ที่มาจากกลุ่ม
     if (event.type !== 'message') return;
     if (event.message.type !== 'text') return;

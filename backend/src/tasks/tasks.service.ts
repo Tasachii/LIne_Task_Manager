@@ -1,13 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TasksRepository } from './tasks.repository';
 import { EventsGateway } from '../realtime/events.gateway';
+import { LineClientService } from '../line/line-client.service';
 import { NewTaskInput, Task, TaskStatus, TASK_STATUSES } from './dto/task.types';
+
+// ป้ายสถานะภาษาไทยสำหรับข้อความแจ้งเตือนในกลุ่ม
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: '📥 Todo (รอรับงาน)',
+  in_process: '🔧 In Process (กำลังทำ)',
+  test: '🧪 Test (กำลังเทส)',
+  done: '✅ Done (เสร็จแล้ว)',
+};
 
 @Injectable()
 export class TasksService {
   constructor(
     private readonly repo: TasksRepository,
     private readonly events: EventsGateway,
+    private readonly line: LineClientService,
   ) {}
 
   async createMany(inputs: NewTaskInput[]): Promise<Task[]> {
@@ -31,6 +41,13 @@ export class TasksService {
     const task = await this.repo.updateStatus(id, status);
     if (!task) throw new NotFoundException('task not found');
     this.events.taskUpdated(task);
+
+    // แจ้งความคืบหน้ากลับเข้ากลุ่ม LINE (fire-and-forget — push พังไม่กระทบ API)
+    const who = task.assignee_name ? `\nผู้รับผิดชอบ: ${task.assignee_name}` : '';
+    void this.line.pushToGroup(
+      task.group_id,
+      `งาน: ${task.title}\nสถานะ → ${STATUS_LABELS[status]}${who}`,
+    );
     return task;
   }
 
@@ -41,6 +58,11 @@ export class TasksService {
     const task = await this.repo.assign(id, userId);
     if (!task) throw new NotFoundException('task not found');
     this.events.taskUpdated(task);
+
+    void this.line.pushToGroup(
+      task.group_id,
+      `🙋 ${task.assignee_name ?? displayName ?? 'มีคน'} รับงาน "${task.title}" แล้ว`,
+    );
     return task;
   }
 }

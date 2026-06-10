@@ -39,4 +39,17 @@ export class LineClientService {
       this.logger.warn(`reply failed: ${(e as Error).message}`);
     }
   }
+
+  // push เข้ากลุ่มได้ทุกเมื่อ (ไม่ต้องมี replyToken) ใช้แจ้งความคืบหน้างาน
+  // พังก็ปล่อยผ่าน — การแจ้งเตือนล้มไม่ควรทำให้ API หลักล้มตาม
+  async pushToGroup(groupId: string, text: string): Promise<void> {
+    try {
+      await this.client.pushMessage({
+        to: groupId,
+        messages: [{ type: 'text', text }],
+      });
+    } catch (e) {
+      this.logger.warn(`push to ${groupId} failed: ${(e as Error).message}`);
+    }
+  }
 }
