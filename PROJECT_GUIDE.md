@@ -165,11 +165,12 @@ Current limitations:
 - Cards cannot be edited or deleted from the board.
 - Push notifications consume LINE OA quota (~300/month on the free plan) — tune `NOTIFY_STATUSES` accordingly.
 
-Planned next:
+Planned next — see [docs/ROADMAP.md](docs/ROADMAP.md) for the full prioritized backlog with code
+pointers and acceptance criteria (written for handoff):
 
-- LINE Login so board identity matches LINE identity
-- Weekly statistics and summaries posted to the group
-- Card editing and deletion from the board
+- **P0 (before multi-team use):** LINE Login (real board identity) + per-group board isolation
+- **P1:** edit/delete cards from the board; weekly statistics and summaries posted to the group
+- **P2:** structured logging/metrics; run e2e in CI
 
 ## 11. Troubleshooting
 

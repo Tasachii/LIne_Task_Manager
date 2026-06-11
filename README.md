@@ -192,6 +192,9 @@ type-checks and builds the frontend on every push and pull request.
 
 ## Roadmap
 
-- LINE Login so board identity matches LINE identity
-- Weekly statistics and summary reports posted to the group
-- Editing and deleting cards from the board
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the prioritized, handoff-ready backlog (with code pointers
+and acceptance criteria). In short:
+
+- **P0 (before multi-team use):** LINE Login + per-group board isolation
+- **P1:** edit/delete cards from the board; weekly statistics posted to the group
+- **P2:** structured logging/metrics; run e2e in CI
