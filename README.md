@@ -14,6 +14,35 @@ When `BOARD_PASSWORD` is set, the board is gated by a password (compared in cons
 
 ![Locked board](docs/review/board-locked.png)
 
+## Project Status
+
+The full message-to-board pipeline is **implemented and verified locally** — a signed webhook payload
+flows through signature check → dedupe → extraction → persistence → realtime board update → group reply,
+covered by unit, integration, and end-to-end tests.
+
+What is **not** done for you, because it needs your own credentials and a public URL: connecting the bot
+to a **real LINE Official Account** and a live group. Until the checklist below is complete, the bot
+cannot receive messages from an actual LINE group.
+
+### Go-Live Checklist
+
+Complete these in order to take the bot from "runs locally" to "reads tasks from a real LINE group".
+Detailed steps for each are in [Connecting a LINE Official Account](#connecting-a-line-official-account).
+
+- [ ] **1. Create a LINE Messaging API channel** in the [LINE Developers Console](https://developers.line.biz).
+- [ ] **2. Put real credentials in `backend/.env`** — `LINE_CHANNEL_SECRET` and `LINE_CHANNEL_ACCESS_TOKEN`.
+      (Local tests use `LINE_CHANNEL_SECRET=test_secret` and no token, so live LINE calls return 401 — that is expected in dev.)
+- [ ] **3. Set `BOARD_PASSWORD` and `CORS_ORIGIN`** before exposing the board publicly.
+- [ ] **4. Run the stack** — `docker compose --profile full up -d --build` (board + webhook served on `:8080`).
+- [ ] **5. Expose a public HTTPS URL** to `:8080` — `ngrok http 8080` for testing, or deploy behind a real domain.
+- [ ] **6. Configure the webhook in LINE** — set Webhook URL to `https://<your-domain>/webhook`, click **Verify** (must report Success), and enable **Use webhook**.
+- [ ] **7. Allow group chats** — in LINE Official Account Manager: Webhooks **on**, Auto-response **off**, and enable **Allow bot to join group chats**.
+- [ ] **8. Invite the bot to a group** and send `/task ...` (one line per task). Cards should appear on the board, and the bot should reply in the group.
+- [ ] **9. (Optional) Enable no-keyword AI intake** — set `ANTHROPIC_API_KEY` so plain messages that describe work become cards without the `/task` keyword.
+
+> **How task detection works:** without `ANTHROPIC_API_KEY`, only messages starting with `/task` create cards
+> (one line = one task); plain chat is ignored. With the key set, the AI also classifies keyword-free messages.
+
 ## Features
 
 - Task intake from LINE via the `/task` keyword; one line per task, with deduplication on LINE webhook retries
