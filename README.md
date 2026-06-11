@@ -4,6 +4,16 @@ A Kanban board integrated with LINE group chats. A bot reads messages in a LINE 
 
 For a complete onboarding reference (architecture, data model, API, conventions), see [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
 
+## Screenshots
+
+The Kanban board — four columns, priority and due-date badges (overdue cards turn red), drag-and-drop, and per-card assignment:
+
+![Kanban board](docs/review/board-overview.png)
+
+When `BOARD_PASSWORD` is set, the board is gated by a password (compared in constant time):
+
+![Locked board](docs/review/board-locked.png)
+
 ## Features
 
 - Task intake from LINE via the `/task` keyword; one line per task, with deduplication on LINE webhook retries
