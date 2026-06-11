@@ -22,14 +22,14 @@ export class WebhookService {
       try {
         await this.handleOne(event);
       } catch (e) {
-        // 1 event พังไม่ควรทำให้ทั้ง batch พัง
+        // One failing event must not abort the whole batch.
         this.logger.error(`handle event failed: ${(e as Error).message}`);
       }
     }
   }
 
   private async handleOne(event: webhook.Event): Promise<void> {
-    // บอตเพิ่งถูกเชิญเข้ากลุ่ม → ทักทาย + สอนวิธีใช้
+    // Bot was just added to a group — send a greeting and usage instructions.
     if (event.type === 'join' && event.replyToken) {
       const keyword = process.env.TASK_KEYWORD ?? '/task';
       await this.line.replyText(
@@ -42,7 +42,7 @@ export class WebhookService {
       return;
     }
 
-    // สนใจเฉพาะข้อความ text ที่มาจากกลุ่ม
+    // Only process text messages from group chats.
     if (event.type !== 'message') return;
     if (event.message.type !== 'text') return;
     if (event.source?.type !== 'group') return;
@@ -52,7 +52,7 @@ export class WebhookService {
     const messageId = event.message.id;
     const text = event.message.text;
 
-    // กันซ้ำตอน LINE retry webhook
+    // Deduplicate on LINE webhook retries.
     if (await this.repo.messageExists(messageId)) {
       this.logger.log(`skip duplicate message ${messageId}`);
       return;
@@ -60,9 +60,9 @@ export class WebhookService {
     await this.repo.saveMessage(messageId, groupId, userId, text);
 
     const extracted = await this.extractor.extract(text);
-    if (extracted.length === 0) return; // ไม่ใช่งาน ข้าม
+    if (extracted.length === 0) return; // not a task message, skip
 
-    // ดึงชื่อคนสั่งงาน แล้ว upsert
+    // Fetch the requester's display name then upsert into users.
     const displayName = await this.line.getGroupMemberName(groupId, userId);
     await this.repo.upsertUser(userId, displayName);
 
@@ -77,7 +77,7 @@ export class WebhookService {
     }));
     const created = await this.tasks.createMany(inputs);
 
-    // confirm กลับในกลุ่ม (optional)
+    // Send confirmation back to the group (optional).
     if (event.replyToken) {
       await this.line.replyText(event.replyToken, `รับเข้า Todo แล้ว ${created.length} งาน ✅`);
     }

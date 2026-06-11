@@ -10,7 +10,7 @@ interface Member {
 
 const STORAGE_KEY = 'ltm_member';
 
-// อ่าน/สร้างตัวตนของสมาชิกบนบอร์ด
+// Load or create the current member identity stored in localStorage
 function loadMember(): Member {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) return JSON.parse(raw);
@@ -31,7 +31,7 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(member));
   }, [member]);
 
-  // เช็คว่าบอร์ดต้องใช้รหัสไหม / รหัสเดิมใน localStorage ยังใช้ได้ไหม
+  // Check whether the board requires a key and whether the stored key is still valid
   useEffect(() => {
     fetchTasks()
       .then(() => setAuth('ok'))
@@ -43,7 +43,7 @@ export default function App() {
     setBoardKey(keyInput.trim());
     try {
       await fetchTasks();
-      resetSocket(); // reconnect WebSocket ด้วย key ใหม่
+      resetSocket(); // reconnect WebSocket with the new key
       setKeyError(false);
       setAuth('ok');
     } catch {

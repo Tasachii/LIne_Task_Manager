@@ -11,7 +11,7 @@ interface Props {
 }
 
 export function Column({ status, label, tasks, onAssign }: Props) {
-  // droppable ไว้รองรับคอลัมน์ว่าง (SortableContext เปล่าๆ ไม่มีพื้นที่ให้วาง)
+  // droppable covers empty columns (an empty SortableContext has no drop target area)
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (

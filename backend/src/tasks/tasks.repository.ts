@@ -7,7 +7,7 @@ import { NewTaskInput, Task, TaskStatus } from './dto/task.types';
 export class TasksRepository {
   constructor(private readonly db: DatabaseService) {}
 
-  // กันซ้ำ: เคย process messageId นี้ไปแล้วหรือยัง
+  // Deduplication check: returns true if this messageId has already been processed.
   async messageExists(messageId: string): Promise<boolean> {
     const rows = await this.db.query('SELECT 1 FROM line_messages WHERE message_id = $1', [messageId]);
     return rows.length > 0;
@@ -27,7 +27,7 @@ export class TasksRepository {
     return rows.length > 0;
   }
 
-  // upsert user จาก LINE
+  // Upsert a user record sourced from LINE.
   async upsertUser(lineUserId: string, displayName: string) {
     await this.db.query(
       `INSERT INTO users (id, line_user_id, display_name)
@@ -39,7 +39,7 @@ export class TasksRepository {
 
   async createTask(input: NewTaskInput): Promise<Task> {
     const id = uuid();
-    // การ์ดใหม่ต่อท้ายคอลัมน์ todo เสมอ (position = max+1)
+    // New cards always append to the end of the todo column (position = max+1).
     await this.db.query(
       `INSERT INTO tasks (id, title, description, status, source_message_id, group_id, created_by, priority, due_date, position)
        VALUES ($1, $2, $3, 'todo', $4, $5, $6, $7, $8,
@@ -58,7 +58,7 @@ export class TasksRepository {
     return (await this.findById(id))!;
   }
 
-  // select มาตรฐาน join ชื่อคนรับงานมาด้วย
+  // Standard SELECT that JOINs the assignee's display name.
   private selectSql = `
     SELECT t.*, u.display_name AS assignee_name
     FROM tasks t
@@ -74,7 +74,7 @@ export class TasksRepository {
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task | null> {
-    // เปลี่ยนคอลัมน์ = ไปต่อท้ายคอลัมน์ใหม่
+    // Changing column appends the card to the end of the new column.
     await this.db.query(
       `UPDATE tasks
        SET status = $2,
@@ -86,7 +86,7 @@ export class TasksRepository {
     return this.findById(id);
   }
 
-  // ย้ายการ์ดไปคอลัมน์ + ตำแหน่งที่ระบุ แล้วไล่เขียน position ของทั้งคอลัมน์ใหม่ให้ชิด 0..n
+  // Move a card to the specified column and position, then rewrite positions for the whole column (0..n).
   async move(id: string, status: TaskStatus, index: number): Promise<Task | null> {
     const exists = await this.findById(id);
     if (!exists) return null;

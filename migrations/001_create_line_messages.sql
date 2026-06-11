@@ -1,6 +1,6 @@
--- เก็บข้อความดิบจาก LINE ไว้เป็นต้นทางของ task
+-- Stores raw LINE messages as the source of record for tasks.
 CREATE TABLE IF NOT EXISTS line_messages (
-  message_id  TEXT PRIMARY KEY,            -- messageId จาก LINE (กันซ้ำตอน webhook retry)
+  message_id  TEXT PRIMARY KEY,            -- messageId from LINE (prevents duplicates on webhook retry)
   group_id    TEXT NOT NULL,
   user_id     TEXT NOT NULL,
   content     TEXT NOT NULL,

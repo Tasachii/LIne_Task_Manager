@@ -34,20 +34,20 @@ try {
   await pageA.setViewport({ width: 1400, height: 900 });
   await pageA.goto(APP, { waitUntil: 'networkidle0' });
 
-  // 1. ใส่ชื่อ → บอร์ดโผล่
+  // 1. Enter name — board appears
   await pageA.waitForSelector('.app__me-input');
   await pageA.type('.app__me-input', 'ผู้ทดสอบ');
   await pageA.waitForSelector('.col', { timeout: 5000 });
   const labels = await pageA.$$eval('.col__label', (els) => els.map((e) => e.textContent));
-  ok('บอร์ด 4 คอลัมน์', JSON.stringify(labels) === JSON.stringify(['Todo', 'In Process', 'Test', 'Done']), labels.join(' / '));
+  ok('board has 4 columns', JSON.stringify(labels) === JSON.stringify(['Todo', 'In Process', 'Test', 'Done']), labels.join(' / '));
 
-  // 2. เปิดแท็บที่สอง
+  // 2. Open second tab
   const pageB = await browser.newPage();
   await pageB.setViewport({ width: 1400, height: 900 });
   await pageB.goto(APP, { waitUntil: 'networkidle0' });
   await pageB.waitForSelector('.col', { timeout: 5000 });
 
-  // 3. ยิง webhook → การ์ดต้องเด้งทั้ง 2 แท็บโดยไม่ refresh
+  // 3. Fire webhook — card must appear on both tabs without a page refresh
   const TITLE = 'งานทดสอบ UI realtime ' + Date.now();
   await sendWebhook('msg_ui_' + Date.now(), '/task ' + TITLE);
   const appeared = async (page) =>
@@ -55,10 +55,10 @@ try {
       (t) => [...document.querySelectorAll('.card__title')].some((el) => el.textContent === t),
       { timeout: 6000, polling: 100 }, TITLE,
     ).then(() => true).catch(() => false);
-  ok('การ์ดใหม่เด้งแท็บ A (realtime)', await appeared(pageA));
-  ok('การ์ดใหม่เด้งแท็บ B (realtime)', await appeared(pageB));
+  ok('new card appears on tab A (realtime)', await appeared(pageA));
+  ok('new card appears on tab B (realtime)', await appeared(pageB));
 
-  // 4. กดรับงานบนแท็บ A → ชื่อขึ้นบนแท็บ B
+  // 4. Click "take task" on tab A — assignee name appears on tab B
   const clicked = await pageA.evaluate((t) => {
     const card = [...document.querySelectorAll('.card')].find(
       (c) => c.querySelector('.card__title')?.textContent === t,
@@ -68,7 +68,7 @@ try {
     btn.click();
     return true;
   }, TITLE);
-  ok('ปุ่มรับงานกดได้', clicked);
+  ok('take-task button is clickable', clicked);
   const assigneeShown = await pageB.waitForFunction(
     (t) => {
       const card = [...document.querySelectorAll('.card')].find(
@@ -78,9 +78,9 @@ try {
     },
     { timeout: 6000, polling: 100 }, TITLE,
   ).then(() => true).catch(() => false);
-  ok('ชื่อผู้รับงาน sync ไปแท็บ B (realtime)', assigneeShown);
+  ok('assignee name synced to tab B (realtime)', assigneeShown);
 
-  // 5. ลากการ์ดจาก Todo → In Process (จำลอง pointer drag ของ dnd-kit)
+  // 5. Drag card from Todo to In Process (simulating dnd-kit pointer drag)
   const cardHandle = await pageA.evaluateHandle((t) => {
     return [...document.querySelectorAll('.col--todo .card')].find(
       (c) => c.querySelector('.card__title')?.textContent === t,
@@ -90,7 +90,7 @@ try {
   const dropBox = await (await pageA.$('.col--in_process .col__drop')).boundingBox();
   await pageA.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + 12);
   await pageA.mouse.down();
-  // ขยับเป็นช่วงๆ ให้เกิน activation distance 5px
+  // Move in increments to exceed the 5px activation distance
   for (let i = 1; i <= 10; i++) {
     await pageA.mouse.move(
       cardBox.x + cardBox.width / 2 + ((dropBox.x + dropBox.width / 2 - cardBox.x - cardBox.width / 2) * i) / 10,
@@ -103,10 +103,10 @@ try {
     (t) => [...document.querySelectorAll('.col--in_process .card__title')].some((el) => el.textContent === t),
     { timeout: 6000, polling: 100 }, TITLE,
   ).then(() => true).catch(() => false);
-  ok('ลากการ์ด Todo → In Process (เห็นผลแท็บ B)', moved);
+  ok('drag card Todo to In Process (visible on tab B)', moved);
 
-  // 6. เก็บ JS error + screenshot
-  ok('ไม่มี JS error บนหน้า', errorsA.length === 0, errorsA.join('; '));
+  // 6. Collect JS errors and take screenshot
+  ok('no JS errors on page', errorsA.length === 0, errorsA.join('; '));
   await pageA.screenshot({ path: '/tmp/ltm_board.png' });
 } finally {
   await browser.close();

@@ -10,14 +10,14 @@ export class LineClientService {
     channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? '',
   });
 
-  // เช็คว่า request มาจาก LINE จริง (HMAC-SHA256 บน raw body)
+  // Verifies the request originates from LINE (HMAC-SHA256 over the raw body).
   verifySignature(rawBody: Buffer | string, signature: string | undefined): boolean {
     if (!signature) return false;
     const body = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8');
     return validateSignature(body, process.env.LINE_CHANNEL_SECRET ?? '', signature);
   }
 
-  // ดึงชื่อคนในกลุ่ม ถ้าพังให้คืน Unknown ไม่ให้ flow ล้ม
+  // Fetches a group member's display name; returns 'Unknown' on failure to avoid breaking the flow.
   async getGroupMemberName(groupId: string, userId: string): Promise<string> {
     try {
       const profile = await this.client.getGroupMemberProfile(groupId, userId);
@@ -28,7 +28,7 @@ export class LineClientService {
     }
   }
 
-  // ตอบกลับในกลุ่ม (optional confirm) พังก็ปล่อยผ่าน
+  // Sends a reply to the group (optional confirmation); swallows errors silently.
   async replyText(replyToken: string, text: string): Promise<void> {
     try {
       await this.client.replyMessage({
@@ -40,8 +40,8 @@ export class LineClientService {
     }
   }
 
-  // push เข้ากลุ่มได้ทุกเมื่อ (ไม่ต้องมี replyToken) ใช้แจ้งความคืบหน้างาน
-  // พังก็ปล่อยผ่าน — การแจ้งเตือนล้มไม่ควรทำให้ API หลักล้มตาม
+  // Pushes a message to the group at any time (no replyToken needed); used for progress notifications.
+  // Errors are swallowed — a failed notification must not fail the main API call.
   async pushToGroup(groupId: string, text: string): Promise<void> {
     try {
       await this.client.pushMessage({

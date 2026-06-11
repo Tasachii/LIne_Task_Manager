@@ -1,4 +1,4 @@
--- การ์ดงานบน Kanban board
+-- Kanban board task cards.
 CREATE TABLE IF NOT EXISTS tasks (
   id                 TEXT PRIMARY KEY,
   title              TEXT NOT NULL,
@@ -7,9 +7,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   source_message_id  TEXT REFERENCES line_messages (message_id),
   group_id           TEXT NOT NULL,
   created_by         TEXT REFERENCES users (id),
-  assignee_id        TEXT REFERENCES users (id),     -- null = ยังไม่มีคนรับ
+  assignee_id        TEXT REFERENCES users (id),     -- null = unassigned
   priority           TEXT,                            -- low | medium | high (optional)
-  position           INTEGER NOT NULL DEFAULT 0,      -- ลำดับการ์ดในคอลัมน์
+  position           INTEGER NOT NULL DEFAULT 0,      -- card order within its column
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );

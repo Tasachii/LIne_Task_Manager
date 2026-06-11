@@ -4,7 +4,7 @@ import { EventsGateway } from '../realtime/events.gateway';
 import { LineClientService } from '../line/line-client.service';
 import { NewTaskInput, Task, TaskStatus, TASK_STATUSES } from './dto/task.types';
 
-// ป้ายสถานะภาษาไทยสำหรับข้อความแจ้งเตือนในกลุ่ม
+// Thai status labels used in LINE group notification messages.
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '📥 Todo (รอรับงาน)',
   in_process: '🔧 In Process (กำลังทำ)',
@@ -14,7 +14,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 
 @Injectable()
 export class TasksService {
-  // เลือกได้ว่าสถานะไหนต้องแจ้งเข้ากลุ่ม (กัน spam + ประหยัด quota ของ OA)
+  // Configurable set of statuses that trigger a group notification (reduces spam and OA quota usage).
   private notifyStatuses = new Set(
     (process.env.NOTIFY_STATUSES ?? 'todo,in_process,test,done')
       .split(',')
@@ -54,7 +54,7 @@ export class TasksService {
     return task;
   }
 
-  // ลากการ์ด: เปลี่ยนทั้งคอลัมน์และลำดับ — แจ้ง LINE เฉพาะตอนข้ามคอลัมน์
+  // Drag card: changes both column and order — notifies LINE only on cross-column moves.
   async move(id: string, status: TaskStatus, index: number): Promise<Task> {
     const before = await this.repo.findById(id);
     if (!before) throw new NotFoundException('task not found');
@@ -62,7 +62,7 @@ export class TasksService {
     const task = await this.repo.move(id, status, index);
     if (!task) throw new NotFoundException('task not found');
 
-    // position ของการ์ดอื่นในคอลัมน์เปลี่ยนด้วย → ให้ทุก client ดึงลำดับใหม่
+    // Other cards in the column also shift positions — broadcast refresh so all clients re-fetch order.
     this.events.tasksReordered();
     if (before.status !== status) this.notifyStatusChange(task, status);
     return task;
@@ -70,9 +70,9 @@ export class TasksService {
 
   async assign(id: string, userId: string, displayName?: string): Promise<Task> {
     if (displayName) {
-      await this.repo.upsertUser(userId, displayName); // กัน FK พังถ้ายังไม่มี user นี้
+      await this.repo.upsertUser(userId, displayName); // ensure user exists to avoid FK violation
     } else if (!(await this.repo.userExists(userId))) {
-      // ไม่มี user และไม่ส่งชื่อมา → ตอบ 400 ชัดๆ แทนปล่อยให้ FK พังเป็น 500
+      // Unknown user with no display name supplied — return 400 explicitly rather than letting the FK fail as 500.
       throw new BadRequestException('unknown user — provide displayName');
     }
     const task = await this.repo.assign(id, userId);
@@ -88,7 +88,7 @@ export class TasksService {
     return task;
   }
 
-  // แจ้งความคืบหน้ากลับเข้ากลุ่ม LINE (fire-and-forget — push พังไม่กระทบ API)
+  // Notifies the LINE group of a status change (fire-and-forget — push failure does not affect the API).
   private notifyStatusChange(task: Task, status: TaskStatus) {
     if (!this.notifyStatuses.has(status)) return;
     const who = task.assignee_name ? `\nผู้รับผิดชอบ: ${task.assignee_name}` : '';

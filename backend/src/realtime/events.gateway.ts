@@ -2,13 +2,13 @@ import { OnGatewayConnection, WebSocketGateway, WebSocketServer } from '@nestjs/
 import { Server, Socket } from 'socket.io';
 import { Task } from '../tasks/dto/task.types';
 
-// ปล่อย event ให้ทุก client ที่เปิดบอร์ดอยู่ เห็น update พร้อมกัน
+// Broadcasts events to all connected board clients so they see updates in real time.
 @WebSocketGateway({ cors: { origin: process.env.CORS_ORIGIN ?? '*' } })
 export class EventsGateway implements OnGatewayConnection {
   @WebSocketServer()
   server: Server;
 
-  // ถ้าตั้ง BOARD_PASSWORD ไว้ client ต้องส่ง auth.key มาตอน connect
+  // If BOARD_PASSWORD is set, the client must supply auth.key on connect.
   handleConnection(client: Socket) {
     const password = process.env.BOARD_PASSWORD;
     if (password && client.handshake.auth?.key !== password) {
@@ -24,7 +24,7 @@ export class EventsGateway implements OnGatewayConnection {
     this.server.emit('task:updated', task);
   }
 
-  // ลำดับการ์ดหลายใบเปลี่ยนพร้อมกัน (ลากจัดตำแหน่ง) → ให้ client ดึงบอร์ดใหม่ทั้งชุด
+  // Multiple card positions changed simultaneously (drag reorder) — clients should refetch the full board.
   tasksReordered() {
     this.server.emit('tasks:refresh');
   }

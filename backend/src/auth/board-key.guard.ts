@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 
-// ป้องกัน REST API ของบอร์ดด้วยรหัสผ่านร่วม (header: x-board-key)
-// ไม่ตั้ง BOARD_PASSWORD = ปิด auth (โหมด dev) — webhook/health ไม่ใช้ guard นี้
+// Protects the board REST API with a shared password (header: x-board-key).
+// If BOARD_PASSWORD is not set, auth is disabled (dev mode). webhook/health bypass this guard.
 @Injectable()
 export class BoardKeyGuard implements CanActivate {
   canActivate(ctx: ExecutionContext): boolean {

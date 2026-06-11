@@ -23,14 +23,14 @@ export class WebhookController {
     @Req() req: RawBodyRequest<Request>,
     @Headers('x-line-signature') signature: string,
   ) {
-    // ต้องใช้ raw body ตรวจ signature (HMAC คิดจาก byte ดิบ)
+    // Raw body is required for signature verification (HMAC is computed over the raw bytes).
     const raw = req.rawBody;
     if (!raw || !this.line.verifySignature(raw, signature)) {
       throw new BadRequestException('invalid signature');
     }
 
     const body = req.body as { events?: webhook.Event[] };
-    // ตอบ LINE 200 เร็วๆ แล้ว process แบบ async (กัน LINE retry)
+    // Respond 200 to LINE immediately, then process events asynchronously to prevent LINE retries.
     void this.webhookService.handleEvents(body.events ?? []);
     return { ok: true };
   }

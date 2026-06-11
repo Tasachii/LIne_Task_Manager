@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-// รัน migration ทุกไฟล์ใน ../../migrations ตามชื่อไฟล์
+// Runs all SQL files in ../../migrations in filename order.
 async function main() {
   const dir = join(__dirname, '..', '..', '..', 'migrations');
   const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();

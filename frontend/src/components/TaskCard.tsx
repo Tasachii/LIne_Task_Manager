@@ -4,10 +4,10 @@ import { Task } from '../types';
 interface Props {
   task: Task;
   onAssign: (task: Task) => void;
-  overlay?: boolean; // การ์ดที่ลอยตามเมาส์ตอนลาก
+  overlay?: boolean; // card floating under the pointer during a drag
 }
 
-// กำหนดส่งเลยมาแล้วและงานยังไม่เสร็จ → เตือนแดง
+// Due date has passed and task is not done — flag as overdue
 function isOverdue(task: Task): boolean {
   if (!task.due_date || task.status === 'done') return false;
   return new Date(task.due_date) < new Date(new Date().toDateString());
@@ -60,7 +60,7 @@ export function TaskCard({ task, onAssign, overlay }: Props) {
               e.stopPropagation();
               onAssign(task);
             }}
-            onPointerDown={(e) => e.stopPropagation()} // กันไม่ให้กลายเป็นลาก
+            onPointerDown={(e) => e.stopPropagation()} // prevent pointer-down from initiating a drag
           >
             รับงาน
           </button>

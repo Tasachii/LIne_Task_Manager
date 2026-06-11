@@ -1,6 +1,6 @@
 import { Task, TaskStatus } from './types';
 
-// dev proxy ส่ง /tasks ไป backend ให้แล้ว / production nginx proxy ให้
+// Dev proxy forwards /tasks to the backend; in production nginx handles the proxy
 const BASE = '';
 
 export class AuthError extends Error {
@@ -41,7 +41,7 @@ export async function updateStatus(id: string, status: TaskStatus): Promise<Task
   return handle(res, 'เปลี่ยนสถานะไม่สำเร็จ');
 }
 
-// ลากการ์ด: ระบุคอลัมน์ปลายทาง + ตำแหน่งในคอลัมน์
+// Move card: specify the target column and position within that column
 export async function moveTask(id: string, status: TaskStatus, index: number): Promise<Task> {
   const res = await fetch(`${BASE}/tasks/${id}/move`, {
     method: 'PATCH',

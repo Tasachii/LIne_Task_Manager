@@ -17,7 +17,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # เปิดทั้งชุด (db + backend + frontend): docker compose --profile full up -d --build
+  # Start the full stack (db + backend + frontend): docker compose --profile full up -d --build
   backend:
     profiles: ["full"]
     build:
@@ -25,9 +25,9 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ltm_backend
     env_file:
-      - backend/.env # ใส่ LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN / BOARD_PASSWORD ที่นี่
+      - backend/.env # place LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN / BOARD_PASSWORD here
     environment:
-      # override ให้ชี้ไป db ใน network ของ compose (ทับค่าใน .env ที่ชี้ localhost)
+      # Override to point at the db service inside the compose network (overrides localhost value in .env)
       DATABASE_URL: postgres://line:line@db:5432/line_task_manager
       PORT: 3000
     ports:
@@ -42,7 +42,7 @@ services:
       retries: 12
     restart: unless-stopped
 
-  # บอร์ด + reverse proxy — public URL ชี้มาที่ :8080 ที่เดียว (รวม /webhook ของ LINE)
+  # Board + reverse proxy — expose a single public URL on :8080 (includes LINE's /webhook)
   frontend:
     profiles: ["full"]
     build:

@@ -9,7 +9,7 @@ export interface ExtractedTask {
   dueDate?: string; // YYYY-MM-DD
 }
 
-// JSON schema สำหรับ structured output ของ Claude — บังคับให้ตอบเป็นรูปนี้เสมอ
+// JSON schema for Claude's structured output — enforces this exact response shape.
 const EXTRACT_SCHEMA = {
   type: 'object',
   properties: {
@@ -48,7 +48,7 @@ export class TaskExtractionService {
   private readonly logger = new Logger(TaskExtractionService.name);
   private keyword = process.env.TASK_KEYWORD ?? '/task';
 
-  // AI extraction เป็น optional — เปิดเมื่อมี ANTHROPIC_API_KEY เท่านั้น
+  // AI extraction is optional — enabled only when ANTHROPIC_API_KEY is set.
   private anthropic = process.env.ANTHROPIC_API_KEY
     ? new Anthropic({ timeout: 15_000, maxRetries: 1 })
     : null;
@@ -57,19 +57,19 @@ export class TaskExtractionService {
   async extract(message: string): Promise<ExtractedTask[]> {
     const trimmed = message.trim();
 
-    // 1) ขึ้นต้นด้วย keyword → parse ตรงๆ เสมอ (ไม่เรียก AI)
+    // 1) Message starts with keyword — parse directly, never call AI.
     if (trimmed.toLowerCase().startsWith(this.keyword.toLowerCase())) {
       return this.extractByKeyword(trimmed);
     }
 
-    // 2) ไม่มี keyword → ให้ AI ช่วยคัด (ถ้าเปิดใช้) ไม่งั้นข้าม
+    // 2) No keyword — delegate to AI if enabled, otherwise skip.
     if (this.anthropic) {
       return this.extractByAI(message);
     }
     return [];
   }
 
-  // หลายบรรทัด = หลาย task (FR-2.2) + token พิเศษ: !high/!low/!ด่วน และ @YYYY-MM-DD
+  // Multiple lines = multiple tasks (FR-2.2). Special tokens: !high/!low/!ด่วน and @YYYY-MM-DD.
   private extractByKeyword(trimmed: string): ExtractedTask[] {
     const body = trimmed.slice(this.keyword.length).trim();
     if (!body) return [];
@@ -101,14 +101,14 @@ export class TaskExtractionService {
     return { title: this.truncateTitle(line), description: line, priority, dueDate };
   }
 
-  // ตัดที่ 60 "ตัวอักษรที่ตามองเห็น" (grapheme) — สระ/วรรณยุกต์ไทยไม่โดนผ่าครึ่ง
+  // Truncate to 60 visible graphemes — Thai vowels/tone marks are never split mid-character.
   private truncateTitle(text: string): string {
     const graphemes = [...new Intl.Segmenter('th', { granularity: 'grapheme' }).segment(text)];
     if (graphemes.length <= 60) return text;
     return graphemes.slice(0, 60).map((g) => g.segment).join('') + '…';
   }
 
-  // ให้ Claude คัดกรอง — พังหรือช้าเกิน timeout ให้คืน [] (fail-open ไม่บล็อก webhook)
+  // Ask Claude to classify the message — returns [] on error or timeout (fail-open, never blocks the webhook).
   private async extractByAI(message: string): Promise<ExtractedTask[]> {
     try {
       const res = await this.anthropic!.messages.create({

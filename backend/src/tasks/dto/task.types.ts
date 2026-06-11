@@ -15,7 +15,7 @@ export interface Task {
   group_id: string;
   created_by: string | null;
   assignee_id: string | null;
-  assignee_name?: string | null; // มาจาก join users
+  assignee_name?: string | null; // populated via JOIN with users
   priority: TaskPriority | null;
   due_date: string | null;
   position: number;
@@ -23,7 +23,7 @@ export interface Task {
   updated_at: string;
 }
 
-// ข้อมูลที่ extractor คายออกมา ก่อนกลายเป็น row จริง
+// Data produced by the extractor before it becomes an actual database row.
 export interface NewTaskInput {
   title: string;
   description: string;
@@ -34,7 +34,7 @@ export interface NewTaskInput {
   dueDate?: string; // YYYY-MM-DD
 }
 
-// DTO เป็น class เพื่อให้ ValidationPipe ตรวจ payload จริงก่อนถึง service
+// DTOs are classes so ValidationPipe can inspect the actual payload before it reaches the service.
 export class UpdateStatusDto {
   @IsIn(TASK_STATUSES)
   status: TaskStatus;
@@ -46,7 +46,7 @@ export class MoveDto {
 
   @IsInt()
   @Min(0)
-  index: number; // ตำแหน่งใหม่ในคอลัมน์ปลายทาง
+  index: number; // target position within the destination column
 }
 
 export class AssignDto {
@@ -56,5 +56,5 @@ export class AssignDto {
 
   @IsOptional()
   @IsString()
-  displayName?: string; // เผื่อสมาชิกบนบอร์ดที่ยังไม่มีใน users
+  displayName?: string; // for board members not yet present in the users table
 }

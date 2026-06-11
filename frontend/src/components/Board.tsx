@@ -30,7 +30,7 @@ export function Board({ currentMember }: Props) {
   const [offline, setOffline] = useState(false);
   const dragging = useRef(false);
 
-  // กดค้างขยับ 5px ก่อนค่อยเริ่มลาก (กดปุ่มในการ์ดได้ปกติ)
+  // Require a 5px movement before drag starts (so button clicks inside cards still work)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
@@ -40,14 +40,14 @@ export function Board({ currentMember }: Props) {
     const onCreated = (task: Task) => setTasks((prev) => [...prev, task]);
     const onUpdated = (task: Task) =>
       setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
-    // ลำดับเปลี่ยนหลายใบพร้อมกัน → ดึงบอร์ดใหม่ (ข้ามถ้ากำลังลากอยู่ กันการ์ดกระตุก)
+    // Multiple cards reordered simultaneously — refetch the board (skip if dragging to prevent card jitter)
     const onRefresh = () => {
       if (!dragging.current) fetchTasks().then(setTasks).catch(() => undefined);
     };
     const onDisconnect = () => setOffline(true);
     const onConnect = () => {
       setOffline(false);
-      onRefresh(); // ต่อใหม่ได้แล้วดึงสถานะล่าสุดเผื่อพลาด event ไประหว่างหลุด
+      onRefresh(); // Reconnected — refetch latest state in case events were missed during disconnect
     };
 
     socket.on('task:created', onCreated);
@@ -64,7 +64,7 @@ export function Board({ currentMember }: Props) {
     };
   }, []);
 
-  // id ที่ลากไป hover อยู่ เป็นได้ทั้งการ์ดและคอลัมน์ (คอลัมน์ว่าง)
+  // The hovered id during drag can be either a card or a column (when the column is empty)
   function findColumn(id: string): TaskStatus | undefined {
     if (COLUMN_IDS.includes(id)) return id as TaskStatus;
     return tasks.find((t) => t.id === id)?.status;
@@ -75,7 +75,7 @@ export function Board({ currentMember }: Props) {
     setActiveId(String(e.active.id));
   }
 
-  // ระหว่างลากข้ามคอลัมน์: ย้ายการ์ดใน state ทันทีให้เห็นช่องว่าง
+  // While dragging across columns: update state immediately so the drop placeholder is visible
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
     if (!over) return;
@@ -89,7 +89,7 @@ export function Board({ currentMember }: Props) {
       const rest = prev.filter((t) => t.id !== active.id);
       const updated = { ...moving, status: overCol };
       const overIdx = rest.findIndex((t) => t.id === over.id);
-      if (overIdx === -1) return [...rest, updated]; // hover บนคอลัมน์เปล่า → ต่อท้าย
+      if (overIdx === -1) return [...rest, updated]; // hovering an empty column — append to end
       rest.splice(overIdx, 0, updated);
       return rest;
     });
@@ -104,7 +104,7 @@ export function Board({ currentMember }: Props) {
     const task = tasks.find((t) => t.id === active.id);
     if (!task) return;
 
-    // จัดลำดับภายในคอลัมน์เดียวกัน (ลากวางบนการ์ดอื่น)
+    // Reorder within the same column (dropping onto another card)
     let next = tasks;
     if (over.id !== active.id && !COLUMN_IDS.includes(String(over.id))) {
       const overTask = tasks.find((t) => t.id === over.id);
@@ -116,7 +116,7 @@ export function Board({ currentMember }: Props) {
       }
     }
 
-    // ตำแหน่งสุดท้ายในคอลัมน์ → ยิง API (optimistic ไปแล้ว พังค่อยดึงของจริง)
+    // Final position in column — call API (state already updated optimistically; refetch on failure)
     const index = next.filter((t) => t.status === task.status).findIndex((t) => t.id === task.id);
     try {
       await moveTask(task.id, task.status, Math.max(index, 0));

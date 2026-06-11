@@ -1,12 +1,12 @@
 :root {
-  --paper: #f5f1e8;        /* พื้นกระดาษอุ่น */
+  --paper: #f5f1e8;        /* warm paper background */
   --card: #fffdf8;
-  --ink: #211d17;          /* ดำอมน้ำตาล */
+  --ink: #211d17;          /* dark brown-black */
   --ink-soft: #6b6357;
   --line: #ddd5c5;
   --shadow: 0 1px 2px rgba(33, 29, 23, 0.06), 0 4px 14px rgba(33, 29, 23, 0.05);
 
-  /* สีประจำสถานะ */
+  /* status colors */
   --c-todo: #8a8378;
   --c-in_process: #c8821f;
   --c-test: #6a5acd;
@@ -24,7 +24,7 @@ body {
   font-family: var(--font-body);
   color: var(--ink);
   background-color: var(--paper);
-  /* ลายจุดบาง ๆ ให้รู้สึกเป็นกระดาษกราฟ */
+  /* subtle dot pattern for a graph-paper feel */
   background-image: radial-gradient(rgba(33, 29, 23, 0.06) 1px, transparent 1px);
   background-size: 22px 22px;
 }
@@ -59,7 +59,7 @@ body {
   padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 16px;
 }
 
-/* board = 4 คอลัมน์เรียงแนวนอน */
+/* board: 4 columns in a horizontal grid */
 .board {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
 }
@@ -93,13 +93,13 @@ body {
   padding: 20px 0; opacity: 0.6;
 }
 
-/* สีประจำคอลัมน์ */
+/* column accent colors */
 .col--todo { --accent: var(--c-todo); }
 .col--in_process { --accent: var(--c-in_process); }
 .col--test { --accent: var(--c-test); }
 .col--done { --accent: var(--c-done); }
 
-/* การ์ด */
+/* card */
 .card {
   background: var(--card); border: 1px solid var(--line);
   border-left: 4px solid var(--accent, var(--line));

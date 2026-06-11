@@ -1,7 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
-// สำหรับ healthcheck ของ Docker / load balancer — ไม่ติด auth
+// Health check endpoint for Docker / load balancer — no auth required.
 @Controller('health')
 export class HealthController {
   constructor(private readonly db: DatabaseService) {}

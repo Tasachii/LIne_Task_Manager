@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    // proxy /tasks ไป backend ตอน dev (กัน CORS)
+    // Proxy /tasks to the backend in dev (avoids CORS)
     proxy: {
       '/tasks': 'http://localhost:3000',
     },
